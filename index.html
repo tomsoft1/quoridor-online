@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quoridor Online</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    #app { width: 100%; max-width: 600px; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 20px; color: #e94560; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    input, button { font-size: 16px; padding: 10px 16px; border-radius: 6px; border: 1px solid #333; }
+    input { background: #16213e; color: #eee; width: 100%; margin-bottom: 10px; }
+    button { background: #e94560; color: #fff; border: none; cursor: pointer; width: 100%; margin-bottom: 8px; }
+    button:hover { background: #c73650; }
+    button.secondary { background: #16213e; border: 1px solid #e94560; }
+    .lobby-item { display: flex; justify-content: space-between; align-items: center; background: #16213e; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
+    .lobby-item button { width: auto; margin: 0; }
+    #game-container { text-align: center; }
+    #game-info { margin-bottom: 12px; font-size: 14px; }
+    canvas { border: 2px solid #333; border-radius: 4px; cursor: pointer; }
+    .mode-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+    .mode-toggle button { flex: 1; }
+    .mode-toggle button.active { background: #e94560; }
+    .mode-toggle button:not(.active) { background: #16213e; border: 1px solid #555; }
+    #end-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 10; }
+    #end-overlay.active { display: flex; }
+    #end-overlay h2 { font-size: 2em; margin-bottom: 20px; color: #e94560; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Quoridor Online</h1>
+
+    <div id="screen-login" class="screen active">
+      <input id="login-email" type="email" placeholder="Email" />
+      <input id="login-password" type="password" placeholder="Mot de passe" />
+      <button id="btn-login">Se connecter</button>
+      <button id="btn-register" class="secondary">Creer un compte</button>
+      <button id="btn-guest" class="secondary" style="margin-top:12px">Jouer sans compte</button>
+      <p id="login-error" style="color:#e94560;margin-top:8px"></p>
+    </div>
+
+    <div id="screen-lobby" class="screen">
+      <button id="btn-create-lobby">Creer une partie</button>
+      <div id="lobby-list"></div>
+      <p id="lobby-status" style="margin-top:8px;font-size:14px"></p>
+    </div>
+
+    <div id="screen-game" class="screen">
+      <div id="game-container">
+        <div id="game-info"></div>
+        <div class="mode-toggle">
+          <button id="btn-mode-move" class="active">Deplacer</button>
+          <button id="btn-mode-wall">Mur (reste: <span id="walls-left">10</span>)</button>
+        </div>
+        <canvas id="board" width="500" height="500"></canvas>
+      </div>
+    </div>
+
+    <div id="end-overlay">
+      <h2 id="end-message"></h2>
+      <button id="btn-back-lobby" style="width:auto;padding:12px 32px">Retour au lobby</button>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
