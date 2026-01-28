@@ -10,13 +10,28 @@ async function tick() {
   try {
     const games = await getList("games");
 
+    // Stats
+    const waitingGames = games.filter((g: any) => g.data.status === "waiting");
+    const playingGames = games.filter((g: any) => g.data.status === "playing");
+    const botGames = playingGames.filter((g: any) =>
+      g.data.players?.[0]?.userId === BOT_ID || g.data.players?.[1]?.userId === BOT_ID
+    );
+    const botTurn = botGames.filter((g: any) => {
+      const botIdx = g.data.players?.[0]?.userId === BOT_ID ? 0 : 1;
+      return g.data.currentTurn === botIdx;
+    });
+
+    console.log(`[BOT] Games: ${games.length} total | ${waitingGames.length} waiting | ${playingGames.length} playing | ${botGames.length} bot games | ${botTurn.length} bot's turn`);
+
     for (const game of games) {
       const state = game.data as GameState;
       const gameId = game._id;
 
       // Request to join waiting games (skip if someone else already requested)
       if (state.status === "waiting" && !joinedGames.has(gameId) && !(state as any).pendingPlayer) {
-        console.log(`[BOT] Requesting to join game ${gameId}...`);
+        const gameName = (state as any).name || "Sans nom";
+        const host = state.players[0]?.userId || "?";
+        console.log(`[BOT] Requesting to join "${gameName}" (${gameId}) hosted by ${host}...`);
         try {
           (state as any).pendingPlayer = BOT_ID;
           await update("games", gameId, state);
@@ -36,7 +51,9 @@ async function tick() {
         if (botIdx === -1) continue; // Bot not in this game
 
         if (state.currentTurn === botIdx) {
-          console.log(`[BOT] Playing in game ${gameId}...`);
+          const gameName = (state as any).name || "Sans nom";
+          const opponent = state.players[1 - botIdx]?.userId || "?";
+          console.log(`[BOT] Playing in "${gameName}" (${gameId}) vs ${opponent}...`);
           try {
             const action = chooseAction(state, botIdx as 0 | 1);
             const newState = applyAction(state, action);
