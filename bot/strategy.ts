@@ -201,11 +201,124 @@ export function applyAction(state: GameState, action: Action): GameState | null 
   return null;
 }
 
-// AI Strategy: greedy approach
+// Find the next cell on the shortest path to goal
+function getPathNextStep(walls: Wall[], start: Pos, targetRow: number): Pos | null {
+  const visited = new Map<string, Pos | null>();
+  const queue: Pos[] = [start];
+  visited.set(`${start.row},${start.col}`, null);
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur.row === targetRow) {
+      // Backtrack to find first step
+      let step = cur;
+      let prev = visited.get(`${step.row},${step.col}`);
+      while (prev && (prev.row !== start.row || prev.col !== start.col)) {
+        step = prev;
+        prev = visited.get(`${step.row},${step.col}`);
+      }
+      return step;
+    }
+
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const next: Pos = { row: cur.row + dr, col: cur.col + dc };
+      const key = `${next.row},${next.col}`;
+      if (next.row < 0 || next.row > 8 || next.col < 0 || next.col > 8) continue;
+      if (visited.has(key)) continue;
+      if (!canStepCheck(walls, cur, next)) continue;
+      visited.set(key, cur);
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+// Helper to check step (duplicated for use in pathfinding)
+function canStepCheck(walls: Wall[], from: Pos, to: Pos): boolean {
+  if (to.row < 0 || to.row > 8 || to.col < 0 || to.col > 8) return false;
+  const dr = to.row - from.row;
+  const dc = to.col - from.col;
+
+  for (const w of walls) {
+    if (w.orientation === "h") {
+      if (dr === 1 && dc === 0) {
+        if (w.row === from.row && (w.col === from.col || w.col === from.col - 1)) return false;
+      }
+      if (dr === -1 && dc === 0) {
+        if (w.row === to.row && (w.col === to.col || w.col === to.col - 1)) return false;
+      }
+    }
+    if (w.orientation === "v") {
+      if (dc === 1 && dr === 0) {
+        if (w.col === from.col && (w.row === from.row || w.row === from.row - 1)) return false;
+      }
+      if (dc === -1 && dr === 0) {
+        if (w.col === to.col && (w.row === to.row || w.row === to.row - 1)) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Find best wall to block opponent's path
+function findBlockingWall(state: GameState, botIdx: 0 | 1): Wall | null {
+  const oppIdx = (1 - botIdx) as 0 | 1;
+  const oppPos = state.players[oppIdx].pos;
+  const oppGoal = goalRow(oppIdx);
+  const currentOppDist = shortestPath(state.walls, oppPos, oppGoal);
+
+  // Get opponent's next step on their shortest path
+  const nextStep = getPathNextStep(state.walls, oppPos, oppGoal);
+  if (!nextStep) return null;
+
+  let bestWall: Wall | null = null;
+  let bestIncrease = 0;
+
+  // Try walls that could block the opponent's path
+  // Focus on the area between opponent and their next few steps
+  for (let row = Math.max(0, oppPos.row - 2); row <= Math.min(7, oppPos.row + 2); row++) {
+    for (let col = Math.max(0, oppPos.col - 2); col <= Math.min(7, oppPos.col + 2); col++) {
+      for (const orientation of ["h", "v"] as const) {
+        const wall: Wall = { row, col, orientation };
+
+        if (!isValidWall(state, wall, botIdx)) continue;
+
+        const newWalls = [...state.walls, wall];
+        const newOppDist = shortestPath(newWalls, oppPos, oppGoal);
+        const increase = newOppDist - currentOppDist;
+
+        // Also check we don't hurt ourselves too much
+        const botPos = state.players[botIdx].pos;
+        const botGoal = goalRow(botIdx);
+        const currentBotDist = shortestPath(state.walls, botPos, botGoal);
+        const newBotDist = shortestPath(newWalls, botPos, botGoal);
+        const selfHurt = newBotDist - currentBotDist;
+
+        // Net benefit: opponent slowdown minus self slowdown
+        const netBenefit = increase - selfHurt;
+
+        if (netBenefit > bestIncrease) {
+          bestIncrease = netBenefit;
+          bestWall = wall;
+        }
+      }
+    }
+  }
+
+  // Only return wall if it provides significant benefit
+  return bestIncrease >= 2 ? bestWall : null;
+}
+
+// AI Strategy: smart approach with path evaluation
 export function chooseAction(state: GameState, botIdx: 0 | 1): Action {
   const validMoves = getValidMoves(state, botIdx);
   const goal = goalRow(botIdx);
   const oppIdx = (1 - botIdx) as 0 | 1;
+
+  const botPos = state.players[botIdx].pos;
+  const oppPos = state.players[oppIdx].pos;
+  const botDist = shortestPath(state.walls, botPos, goal);
+  const oppDist = shortestPath(state.walls, oppPos, goalRow(oppIdx));
 
   // Find best move (closest to goal)
   let bestMove: Pos | null = null;
@@ -219,28 +332,19 @@ export function chooseAction(state: GameState, botIdx: 0 | 1): Action {
     }
   }
 
-  // Consider placing a wall to slow opponent
-  if (state.players[botIdx].wallsLeft > 0 && Math.random() < 0.3) {
-    const oppPos = state.players[oppIdx].pos;
-    const oppGoal = goalRow(oppIdx);
-    const currentOppDist = shortestPath(state.walls, oppPos, oppGoal);
+  // Decision: move or place wall?
+  const wallsLeft = state.players[botIdx].wallsLeft;
 
-    // Try a few random walls near opponent
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const wall: Wall = {
-        row: Math.max(0, Math.min(7, oppPos.row + Math.floor(Math.random() * 3) - 1)),
-        col: Math.max(0, Math.min(7, oppPos.col + Math.floor(Math.random() * 3) - 1)),
-        orientation: Math.random() < 0.5 ? "h" : "v",
-      };
+  // Consider wall if:
+  // 1. We have walls
+  // 2. Opponent is closer to their goal than us, OR opponent is getting close
+  // 3. Not in endgame (save some walls)
+  const shouldConsiderWall = wallsLeft > 2 && (oppDist <= botDist || oppDist <= 4);
 
-      if (isValidWall(state, wall, botIdx)) {
-        const newWalls = [...state.walls, wall];
-        const newOppDist = shortestPath(newWalls, oppPos, oppGoal);
-        // Only place wall if it significantly slows opponent
-        if (newOppDist > currentOppDist + 1) {
-          return { type: "wall", wall };
-        }
-      }
+  if (shouldConsiderWall) {
+    const blockingWall = findBlockingWall(state, botIdx);
+    if (blockingWall) {
+      return { type: "wall", wall: blockingWall };
     }
   }
 
@@ -254,6 +358,5 @@ export function chooseAction(state: GameState, botIdx: 0 | 1): Action {
     return { type: "move", pos: validMoves[Math.floor(Math.random() * validMoves.length)] };
   }
 
-  // Should never happen, but just in case
   throw new Error("No valid moves available");
 }

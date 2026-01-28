@@ -250,7 +250,7 @@ export function initLobbyScreen(
       const gameState = createInitialState(userId, null);
       (gameState as any).name = name;
       (gameState as any).status = "waiting";
-      await create("games", gameState, [userId]);
+      await create("games", gameState); // No allowed restriction - anyone can request to join
       nameInput.value = "";
       statusEl.textContent = "";
     } catch (e: any) {

@@ -14,19 +14,16 @@ async function tick() {
       const state = game.data as GameState;
       const gameId = game._id;
 
-      // Join waiting games (skip if someone else already requested to join)
+      // Request to join waiting games (skip if someone else already requested)
       if (state.status === "waiting" && !joinedGames.has(gameId) && !(state as any).pendingPlayer) {
-        console.log(`[BOT] Joining game ${gameId}...`);
+        console.log(`[BOT] Requesting to join game ${gameId}...`);
         try {
-          state.players[1].userId = BOT_ID;
-          state.status = "playing";
-          const hostId = state.players[0].userId;
-          const allowed = [hostId, BOT_ID].filter(Boolean) as string[];
-          await update("games", gameId, state, allowed);
+          (state as any).pendingPlayer = BOT_ID;
+          await update("games", gameId, state);
           joinedGames.add(gameId);
-          console.log(`[BOT] Joined game ${gameId}`);
+          console.log(`[BOT] Requested to join game ${gameId}, waiting for acceptance`);
         } catch (e: any) {
-          console.error(`[BOT] Failed to join game ${gameId}:`, e.message);
+          console.error(`[BOT] Failed to request join for game ${gameId}:`, e.message);
         }
         continue;
       }
