@@ -14,8 +14,8 @@ async function tick() {
       const state = game.data as GameState;
       const gameId = game._id;
 
-      // Join waiting games
-      if (state.status === "waiting" && !joinedGames.has(gameId)) {
+      // Join waiting games (skip if someone else already requested to join)
+      if (state.status === "waiting" && !joinedGames.has(gameId) && !(state as any).pendingPlayer) {
         console.log(`[BOT] Joining game ${gameId}...`);
         try {
           state.players[1].userId = BOT_ID;

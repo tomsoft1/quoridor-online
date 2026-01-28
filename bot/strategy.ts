@@ -23,6 +23,7 @@ export interface GameState {
   status: "waiting" | "playing" | "finished";
   winner?: 0 | 1;
   name?: string;
+  pendingPlayer?: string;
 }
 
 export type Action = { type: "move"; pos: Pos } | { type: "wall"; wall: Wall };

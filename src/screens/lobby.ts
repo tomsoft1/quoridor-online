@@ -1,4 +1,4 @@
-import { create, remove, update, getUserId, isGuest } from "../api";
+import { create, remove, update, getUserId } from "../api";
 import type { SyncProvider } from "../sync/types";
 import { createInitialState } from "../game/state";
 
@@ -66,7 +66,7 @@ export function initLobbyScreen(
       }
     }
 
-    // --- My waiting games ---
+    // --- My waiting games (with pending requests) ---
     const myWaiting = currentGames.filter((g: any) => {
       const d = g.data;
       return d.status === "waiting" && d.players?.[0]?.userId === userId;
@@ -83,29 +83,79 @@ export function initLobbyScreen(
         const name = d.name || "Sans nom";
         const div = document.createElement("div");
         div.className = "lobby-item my-game";
-        div.innerHTML = `<span>${name} — en attente d'un adversaire...</span>`;
 
-        const btnStart = document.createElement("button");
-        btnStart.textContent = "Entrer";
-        btnStart.addEventListener("click", () => {
-          stopPolling();
-          onGameStart(game._id);
-        });
-        div.appendChild(btnStart);
+        // Check if there's a pending player
+        if (d.pendingPlayer) {
+          div.innerHTML = `<span>${name} — <strong>${d.pendingPlayer}</strong> veut rejoindre</span>`;
+
+          const btnAccept = document.createElement("button");
+          btnAccept.textContent = "Accepter";
+          btnAccept.addEventListener("click", () => acceptPlayer(game));
+          div.appendChild(btnAccept);
+
+          const btnReject = document.createElement("button");
+          btnReject.textContent = "Refuser";
+          btnReject.style.background = "#16213e";
+          btnReject.style.border = "1px solid #e94560";
+          btnReject.style.color = "#e94560";
+          btnReject.addEventListener("click", () => rejectPlayer(game));
+          div.appendChild(btnReject);
+        } else {
+          div.innerHTML = `<span>${name} — en attente d'un adversaire...</span>`;
+
+          const btnStart = document.createElement("button");
+          btnStart.textContent = "Entrer";
+          btnStart.addEventListener("click", () => {
+            stopPolling();
+            onGameStart(game._id);
+          });
+          div.appendChild(btnStart);
+
+          const btnCancel = document.createElement("button");
+          btnCancel.textContent = "Annuler";
+          btnCancel.style.background = "#16213e";
+          btnCancel.style.border = "1px solid #e94560";
+          btnCancel.style.color = "#e94560";
+          btnCancel.addEventListener("click", async () => {
+            try {
+              await remove("games", game._id);
+            } catch (e: any) {
+              statusEl.textContent = e.message;
+            }
+          });
+          div.appendChild(btnCancel);
+        }
+
+        listEl.appendChild(div);
+      }
+    }
+
+    // --- My pending join requests ---
+    const myPending = currentGames.filter((g: any) => {
+      const d = g.data;
+      return d.status === "waiting" && d.pendingPlayer === userId;
+    });
+
+    if (myPending.length > 0) {
+      const title = document.createElement("p");
+      title.className = "lobby-section-title";
+      title.textContent = "En attente d'acceptation";
+      listEl.appendChild(title);
+
+      for (const game of myPending) {
+        const d = game.data;
+        const name = d.name || "Sans nom";
+        const div = document.createElement("div");
+        div.className = "lobby-item";
+        div.innerHTML = `<span>${name} — en attente de reponse...</span>`;
 
         const btnCancel = document.createElement("button");
         btnCancel.textContent = "Annuler";
         btnCancel.style.background = "#16213e";
-        btnCancel.style.border = "1px solid #e94560";
-        btnCancel.style.color = "#e94560";
-        btnCancel.addEventListener("click", async () => {
-          try {
-            await remove("games", game._id);
-          } catch (e: any) {
-            statusEl.textContent = e.message;
-          }
-        });
+        btnCancel.style.border = "1px solid #555";
+        btnCancel.addEventListener("click", () => cancelJoinRequest(game));
         div.appendChild(btnCancel);
+
         listEl.appendChild(div);
       }
     }
@@ -113,7 +163,11 @@ export function initLobbyScreen(
     // --- Other waiting games (joinable) ---
     const otherWaiting = currentGames.filter((g: any) => {
       const d = g.data;
-      return d.status === "waiting" && d.players?.[0]?.userId !== userId;
+      if (d.status !== "waiting") return false;
+      if (d.players?.[0]?.userId === userId) return false;
+      if (d.pendingPlayer === userId) return false; // Already requested
+      if (d.pendingPlayer) return false; // Someone else already requested
+      return true;
     });
 
     if (otherWaiting.length > 0) {
@@ -130,25 +184,59 @@ export function initLobbyScreen(
         div.innerHTML = `<span>${name}</span>`;
         const btn = document.createElement("button");
         btn.textContent = "Rejoindre";
-        btn.addEventListener("click", () => joinGame(game));
+        btn.addEventListener("click", () => requestJoin(game));
         div.appendChild(btn);
         listEl.appendChild(div);
       }
     }
   }
 
-  async function joinGame(game: any) {
+  async function requestJoin(game: any) {
     const userId = getUserId();
-    statusEl.textContent = "Lancement...";
+    statusEl.textContent = "Demande en cours...";
+    try {
+      const d = { ...game.data, pendingPlayer: userId };
+      await update("games", game._id, d);
+      statusEl.textContent = "";
+    } catch (e: any) {
+      statusEl.textContent = e.message;
+    }
+  }
+
+  async function cancelJoinRequest(game: any) {
+    try {
+      const d = { ...game.data };
+      delete d.pendingPlayer;
+      await update("games", game._id, d);
+    } catch (e: any) {
+      statusEl.textContent = e.message;
+    }
+  }
+
+  async function acceptPlayer(game: any) {
+    const userId = getUserId();
+    statusEl.textContent = "Acceptation...";
     try {
       const d = game.data;
-      d.players[1].userId = isGuest() ? null : userId;
+      const pendingId = d.pendingPlayer;
+      d.players[1].userId = pendingId;
       d.status = "playing";
-      const hostId = d.players[0].userId;
-      const allowed = [hostId, userId].filter(Boolean) as string[];
+      delete d.pendingPlayer;
+      const allowed = [userId, pendingId].filter(Boolean) as string[];
       await update("games", game._id, d, allowed);
+      statusEl.textContent = "";
       stopPolling();
       onGameStart(game._id);
+    } catch (e: any) {
+      statusEl.textContent = e.message;
+    }
+  }
+
+  async function rejectPlayer(game: any) {
+    try {
+      const d = { ...game.data };
+      delete d.pendingPlayer;
+      await update("games", game._id, d);
     } catch (e: any) {
       statusEl.textContent = e.message;
     }
