@@ -19,8 +19,9 @@ export interface GameState {
   players: [PlayerState, PlayerState];
   walls: Wall[];
   currentTurn: 0 | 1;
-  status: "playing" | "finished";
+  status: "waiting" | "playing" | "finished";
   winner?: 0 | 1;
+  name?: string;
 }
 
 export type ActionMove = { type: "move"; pos: Pos };

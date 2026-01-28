@@ -1,9 +1,10 @@
 import type { GameState } from "../game/state";
 import { getPlayerIndex } from "../game/state";
 import { getValidMoves, applyAction } from "../game/rules";
-import { drawBoard } from "../game/board";
+import { initBoard } from "../game/board";
+import type { BoardRenderer } from "../game/board";
 import type { InputMode } from "../game/input";
-import { handleCanvasClick, handleCanvasMouseMove } from "../game/input";
+import { handleClick, handleMouseMove } from "../game/input";
 import type { SyncProvider, Unsubscribe } from "../sync/types";
 import { update, getUserId } from "../api";
 
@@ -12,8 +13,7 @@ export function initGameScreen(
   gameId: string,
   onGameEnd: () => void,
 ) {
-  const canvas = document.getElementById("board") as HTMLCanvasElement;
-  const ctx = canvas.getContext("2d")!;
+  const container = document.getElementById("board-container")!;
   const infoEl = document.getElementById("game-info")!;
   const wallsLeftEl = document.getElementById("walls-left")!;
   const btnMove = document.getElementById("btn-mode-move")!;
@@ -21,25 +21,28 @@ export function initGameScreen(
   const endOverlay = document.getElementById("end-overlay")!;
   const endMessage = document.getElementById("end-message")!;
   const btnBackLobby = document.getElementById("btn-back-lobby")!;
+  const btnRotate = document.getElementById("btn-rotate")!;
+  const btnQuit = document.getElementById("btn-quit-game")!;
 
   let state: GameState | null = null;
   let playerIdx: 0 | 1 = 0;
   let mode: InputMode = "move";
   let ghostWall: import("../game/state").Wall | null = null;
   let unsub: Unsubscribe | null = null;
+  let board: BoardRenderer | null = null;
   const userId = getUserId();
 
   function render() {
-    if (!state) return;
-    const validMoves = (state.currentTurn === playerIdx && state.status === "playing")
+    if (!state || !board) return;
+    const isMyTurn = state.currentTurn === playerIdx && state.status === "playing";
+    const validMoves = isMyTurn
       ? (mode === "move" ? getValidMoves(state, playerIdx) : [])
       : [];
-    drawBoard(ctx, state, validMoves, mode === "wall" ? ghostWall : null);
+    board.update(state, validMoves, mode === "wall" ? ghostWall : null, isMyTurn, playerIdx);
 
-    const isMyTurn = state.currentTurn === playerIdx;
     const turnLabel = isMyTurn ? "Votre tour" : "Tour de l'adversaire";
     const colorLabel = playerIdx === 0 ? "Rouge" : "Bleu";
-    infoEl.textContent = `${turnLabel} | Vous etes ${colorLabel}`;
+    infoEl.textContent = `${turnLabel} | Vous etes ${colorLabel} | User: ${userId} | Game: ${gameId}`;
     wallsLeftEl.textContent = String(state.players[playerIdx].wallsLeft);
   }
 
@@ -53,41 +56,10 @@ export function initGameScreen(
 
   btnMove.addEventListener("click", () => setMode("move"));
   btnWall.addEventListener("click", () => setMode("wall"));
-
-  canvas.addEventListener("click", async (e) => {
-    if (!state || state.status !== "playing" || state.currentTurn !== playerIdx) return;
-
-    const action = handleCanvasClick(e, canvas, state, playerIdx, mode);
-    if (!action) return;
-
-    const newState = applyAction(state, action);
-    if (!newState) return;
-
-    state = newState;
-    ghostWall = null;
-    render();
-
-    // Push to server
-    try {
-      await update("games", gameId, newState);
-    } catch (err) {
-      console.error("Failed to push state:", err);
-    }
-
-    if (newState.status === "finished") {
-      showEnd(newState);
-    }
-  });
-
-  canvas.addEventListener("mousemove", (e) => {
-    if (!state || state.status !== "playing" || state.currentTurn !== playerIdx) return;
-    ghostWall = handleCanvasMouseMove(e, canvas, state, playerIdx, mode);
-    render();
-  });
-
-  canvas.addEventListener("mouseleave", () => {
-    ghostWall = null;
-    render();
+  btnRotate.addEventListener("click", () => { if (board) board.rotate(); });
+  btnQuit.addEventListener("click", () => {
+    stop();
+    onGameEnd();
   });
 
   function showEnd(s: GameState) {
@@ -103,13 +75,52 @@ export function initGameScreen(
   });
 
   function start() {
+    // Initialize 3D board
+    container.innerHTML = "";
+    board = initBoard(container);
+    const canvas = board.getDomElement();
+
+    canvas.addEventListener("click", async (e) => {
+      if (!state || !board || state.status !== "playing" || state.currentTurn !== playerIdx) return;
+
+      const action = handleClick(e, board, state, playerIdx, mode);
+      if (!action) return;
+
+      const newState = applyAction(state, action);
+      if (!newState) return;
+
+      state = newState;
+      ghostWall = null;
+      render();
+
+      try {
+        await update("games", gameId, newState);
+      } catch (err) {
+        console.error("Failed to push state:", err);
+      }
+
+      if (newState.status === "finished") {
+        showEnd(newState);
+      }
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (!state || !board || state.status !== "playing" || state.currentTurn !== playerIdx) return;
+      ghostWall = handleMouseMove(e, board, state, playerIdx, mode);
+      render();
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      ghostWall = null;
+      render();
+    });
+
     unsub = sync.subscribe("games", gameId, (result: any) => {
       const gs = result.data as GameState;
       if (!gs || !gs.players) return;
 
       if (!state) {
         const idx = getPlayerIndex(gs, userId);
-        // If not found by userId, guest is player 1 (player with null userId)
         playerIdx = idx === -1 ? (gs.players[1].userId === null ? 1 : 0) : idx;
       }
 
@@ -124,6 +135,7 @@ export function initGameScreen(
 
   function stop() {
     if (unsub) { unsub(); unsub = null; }
+    if (board) { board.dispose(); board = null; }
   }
 
   return { start, stop };

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quoridor Online</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -16,11 +17,25 @@
     button { background: #e94560; color: #fff; border: none; cursor: pointer; width: 100%; margin-bottom: 8px; }
     button:hover { background: #c73650; }
     button.secondary { background: #16213e; border: 1px solid #e94560; }
+    button.ghost { background: transparent; border: 1px solid #555; color: #aaa; }
+    button.ghost:hover { border-color: #e94560; color: #eee; background: rgba(233,69,96,0.08); }
+
+    /* Login card */
+    .login-card { background: #16213e; border-radius: 16px; padding: 36px 28px 28px; border: 1px solid #253254; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .login-logo { text-align: center; margin-bottom: 12px; }
+    .login-logo img { filter: drop-shadow(0 0 12px rgba(233,69,96,0.4)); }
+    .login-subtitle { text-align: center; color: #8899aa; font-size: 14px; margin-bottom: 24px; }
+    .login-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: #556; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .login-divider::before, .login-divider::after { content: ""; flex: 1; height: 1px; background: #253254; }
+    #login-error { color: #e94560; margin-top: 12px; font-size: 14px; text-align: center; min-height: 20px; }
     .lobby-item { display: flex; justify-content: space-between; align-items: center; background: #16213e; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
     .lobby-item button { width: auto; margin: 0; }
+    .lobby-item.my-game { border-left: 3px solid #e94560; }
+    .lobby-section-title { font-size: 12px; text-transform: uppercase; color: #888; margin: 12px 0 6px; letter-spacing: 1px; }
     #game-container { text-align: center; }
     #game-info { margin-bottom: 12px; font-size: 14px; }
-    canvas { border: 2px solid #333; border-radius: 4px; cursor: pointer; }
+    #board-container { width: 500px; height: 500px; margin: 0 auto; border-radius: 4px; overflow: hidden; }
+    #board-container canvas { cursor: pointer; display: block; }
     .mode-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
     .mode-toggle button { flex: 1; }
     .mode-toggle button.active { background: #e94560; }
@@ -35,16 +50,30 @@
     <h1>Quoridor Online</h1>
 
     <div id="screen-login" class="screen active">
-      <input id="login-email" type="email" placeholder="Email" />
-      <input id="login-password" type="password" placeholder="Mot de passe" />
-      <button id="btn-login">Se connecter</button>
-      <button id="btn-register" class="secondary">Creer un compte</button>
-      <button id="btn-guest" class="secondary" style="margin-top:12px">Jouer sans compte</button>
-      <p id="login-error" style="color:#e94560;margin-top:8px"></p>
+      <div class="login-card">
+        <div class="login-logo">
+          <img src="/favicon.svg" alt="Quoridor" width="72" height="72" />
+        </div>
+        <p class="login-subtitle">Affrontez vos amis sur le plateau de Quoridor</p>
+
+        <div class="login-divider"><span>Connexion</span></div>
+        <input id="login-email" type="email" placeholder="Email" />
+        <input id="login-password" type="password" placeholder="Mot de passe" />
+        <button id="btn-login">Se connecter</button>
+        <button id="btn-register" class="secondary">Creer un compte</button>
+
+        <div class="login-divider"><span>ou</span></div>
+        <button id="btn-guest" class="ghost">Jouer sans compte</button>
+
+        <p id="login-error"></p>
+      </div>
     </div>
 
     <div id="screen-lobby" class="screen">
-      <button id="btn-create-lobby">Creer une partie</button>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="lobby-name" type="text" placeholder="Nom de la partie (optionnel)" style="flex:1;margin-bottom:0" />
+        <button id="btn-create-lobby" style="width:auto;white-space:nowrap">Creer</button>
+      </div>
       <div id="lobby-list"></div>
       <p id="lobby-status" style="margin-top:8px;font-size:14px"></p>
     </div>
@@ -56,7 +85,11 @@
           <button id="btn-mode-move" class="active">Deplacer</button>
           <button id="btn-mode-wall">Mur (reste: <span id="walls-left">10</span>)</button>
         </div>
-        <canvas id="board" width="500" height="500"></canvas>
+        <div id="board-container"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:center">
+          <button id="btn-rotate" style="width:auto;padding:8px 16px;background:#16213e;border:1px solid #555">Tourner le plateau</button>
+          <button id="btn-quit-game" style="width:auto;padding:8px 16px;background:#16213e;border:1px solid #e94560;color:#e94560">Quitter</button>
+        </div>
       </div>
     </div>
 

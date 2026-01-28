@@ -1,18 +1,31 @@
-import { setApiKey, hasIdentity } from "./api";
+import { hasIdentity } from "./api";
 import { WebSocketSyncProvider } from "./sync/websocket";
 import { initLoginScreen } from "./screens/login";
 import { initLobbyScreen } from "./screens/lobby";
 import { initGameScreen } from "./screens/play";
 
-const API_KEY = import.meta.env.VITE_API_KEY || "zs_ef89725e1beff20215fe396a394af373a0563e8b577725612611177e23135cc4";
-const WS_URL = import.meta.env.VITE_WS_URL || "http://localhost:3002";
-setApiKey(API_KEY);
-
-const sync = new WebSocketSyncProvider(WS_URL, API_KEY);
+const sync = new WebSocketSyncProvider();
 
 function showScreen(id: string) {
   document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
   document.getElementById(`screen-${id}`)?.classList.add("active");
+}
+
+function startGame(gameId: string) {
+  window.location.hash = `game=${gameId}`;
+  showScreen("game");
+  gameScreen = initGameScreen(sync, gameId, () => {
+    window.location.hash = "";
+    showScreen("lobby");
+    lobby.startPolling();
+  });
+  gameScreen.start();
+}
+
+function getGameIdFromHash(): string | null {
+  const hash = window.location.hash;
+  const match = hash.match(/^#game=(.+)$/);
+  return match ? match[1] : null;
 }
 
 // Login screen
@@ -24,17 +37,15 @@ initLoginScreen(() => {
 // Lobby screen
 let gameScreen: ReturnType<typeof initGameScreen> | null = null;
 
-const lobby = initLobbyScreen(sync, (gameId: string) => {
-  showScreen("game");
-  gameScreen = initGameScreen(sync, gameId, () => {
-    showScreen("lobby");
-    lobby.startPolling();
-  });
-  gameScreen.start();
-});
+const lobby = initLobbyScreen(sync, startGame);
 
 // Auto-restore session
 if (hasIdentity()) {
-  showScreen("lobby");
-  lobby.startPolling();
+  const savedGameId = getGameIdFromHash();
+  if (savedGameId) {
+    startGame(savedGameId);
+  } else {
+    showScreen("lobby");
+    lobby.startPolling();
+  }
 }

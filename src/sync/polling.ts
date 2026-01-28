@@ -37,7 +37,7 @@ export class PollingSyncProvider implements SyncProvider {
       if (!active) return;
       try {
         const result = await getList(node, filter);
-        const items = Array.isArray(result) ? result : (result.data || result);
+        const items = Array.isArray(result) ? result : [];
         const json = JSON.stringify(items);
         if (json !== lastJson) {
           lastJson = json;

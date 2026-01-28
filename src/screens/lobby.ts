@@ -1,4 +1,4 @@
-import { create, getList, getUserId, isGuest } from "../api";
+import { create, remove, update, getUserId, isGuest } from "../api";
 import type { SyncProvider } from "../sync/types";
 import { createInitialState } from "../game/state";
 
@@ -8,130 +8,163 @@ export function initLobbyScreen(
 ) {
   const listEl = document.getElementById("lobby-list")!;
   const statusEl = document.getElementById("lobby-status")!;
-  let lobbySub: (() => void) | null = null;
+  const nameInput = document.getElementById("lobby-name") as HTMLInputElement;
   let gamesSub: (() => void) | null = null;
-  let joined = false;
   let currentGames: any[] = [];
 
   function startPolling() {
     stopPolling();
-    joined = false;
     currentGames = [];
-
-    lobbySub = sync.subscribeList("lobbies", {}, renderLobby);
 
     gamesSub = sync.subscribeList("games", {}, (items: any[]) => {
       currentGames = items;
-      const userId = getUserId();
-      const myGame = items.find((g: any) => {
-        const d = g.data;
-        if (d.status !== "playing") return false;
-        const p0 = d.players?.[0]?.userId;
-        const p1 = d.players?.[1]?.userId;
-        // Match by userId, or if we're guest and player1 is null (we just created it)
-        return p0 === userId || p1 === userId || (joined && p1 === null);
-      });
-      if (myGame) {
-        stopPolling();
-        onGameStart(myGame._id);
-      }
+      renderAll();
     });
   }
 
   function stopPolling() {
-    if (lobbySub) { lobbySub(); lobbySub = null; }
     if (gamesSub) { gamesSub(); gamesSub = null; }
   }
 
-  // Check if a game already exists for this host
-  function hostHasGame(hostId: string): boolean {
-    return currentGames.some((g: any) =>
-      g.data?.status === "playing" && g.data?.players?.[0]?.userId === hostId
-    );
-  }
-
-  function renderLobby(items: any[]) {
+  function renderAll() {
     const userId = getUserId();
-    const lobby = items[0] as { _id: string; data: { hostId: string; status: string } } | undefined;
-
-    if (!lobby) {
-      renderEmpty();
-      return;
-    }
-
-    const d = lobby.data;
-
-    // I'm the host, waiting
-    if (d.hostId === userId && d.status === "waiting") {
-      listEl.innerHTML = "";
-      document.getElementById("btn-create-lobby")!.style.display = "none";
-      statusEl.textContent = "En attente d'un adversaire...";
-      return;
-    }
-
-    // Someone else is waiting, I can join
-    if (d.status === "waiting" && d.hostId !== userId) {
-      // Already joined or host already has a game → don't show join button
-      if (joined || hostHasGame(d.hostId)) {
-        document.getElementById("btn-create-lobby")!.style.display = "none";
-        listEl.innerHTML = "";
-        statusEl.textContent = joined ? "Lancement..." : "Partie deja en cours, veuillez patienter...";
-        return;
-      }
-      document.getElementById("btn-create-lobby")!.style.display = "none";
-      statusEl.textContent = "";
-      listEl.innerHTML = "";
-      const div = document.createElement("div");
-      div.className = "lobby-item";
-      div.innerHTML = `<span>Partie en attente</span>`;
-      const btn = document.createElement("button");
-      btn.textContent = "Rejoindre";
-      btn.addEventListener("click", () => joinGame(d.hostId));
-      div.appendChild(btn);
-      listEl.appendChild(div);
-      return;
-    }
-
-    renderEmpty();
-  }
-
-  function renderEmpty() {
+    listEl.innerHTML = "";
     statusEl.textContent = "";
-    listEl.innerHTML = "";
-    document.getElementById("btn-create-lobby")!.style.display = "block";
+
+    // --- My active games (playing) ---
+    const myGames = currentGames.filter((g: any) => {
+      const d = g.data;
+      if (d.status !== "playing") return false;
+      return d.players?.[0]?.userId === userId || d.players?.[1]?.userId === userId;
+    });
+
+    if (myGames.length > 0) {
+      const title = document.createElement("p");
+      title.className = "lobby-section-title";
+      title.textContent = "Vos parties en cours";
+      listEl.appendChild(title);
+
+      for (const game of myGames) {
+        const d = game.data;
+        const isMyTurn = d.players?.[d.currentTurn]?.userId === userId;
+        const div = document.createElement("div");
+        div.className = "lobby-item my-game";
+        const opponent = d.players?.[0]?.userId === userId
+          ? (d.players?.[1]?.userId || "En attente")
+          : (d.players?.[0]?.userId || "En attente");
+        const turnText = isMyTurn ? "A vous" : "En attente";
+        const name = d.name ? `${d.name} — ` : "";
+        div.innerHTML = `<span>${name}vs ${opponent} — <strong>${turnText}</strong></span>`;
+        const btn = document.createElement("button");
+        btn.textContent = "Reprendre";
+        btn.addEventListener("click", () => {
+          stopPolling();
+          onGameStart(game._id);
+        });
+        div.appendChild(btn);
+        listEl.appendChild(div);
+      }
+    }
+
+    // --- My waiting games ---
+    const myWaiting = currentGames.filter((g: any) => {
+      const d = g.data;
+      return d.status === "waiting" && d.players?.[0]?.userId === userId;
+    });
+
+    if (myWaiting.length > 0) {
+      const title = document.createElement("p");
+      title.className = "lobby-section-title";
+      title.textContent = "Vos parties en attente";
+      listEl.appendChild(title);
+
+      for (const game of myWaiting) {
+        const d = game.data;
+        const name = d.name || "Sans nom";
+        const div = document.createElement("div");
+        div.className = "lobby-item my-game";
+        div.innerHTML = `<span>${name} — en attente d'un adversaire...</span>`;
+
+        const btnStart = document.createElement("button");
+        btnStart.textContent = "Entrer";
+        btnStart.addEventListener("click", () => {
+          stopPolling();
+          onGameStart(game._id);
+        });
+        div.appendChild(btnStart);
+
+        const btnCancel = document.createElement("button");
+        btnCancel.textContent = "Annuler";
+        btnCancel.style.background = "#16213e";
+        btnCancel.style.border = "1px solid #e94560";
+        btnCancel.style.color = "#e94560";
+        btnCancel.addEventListener("click", async () => {
+          try {
+            await remove("games", game._id);
+          } catch (e: any) {
+            statusEl.textContent = e.message;
+          }
+        });
+        div.appendChild(btnCancel);
+        listEl.appendChild(div);
+      }
+    }
+
+    // --- Other waiting games (joinable) ---
+    const otherWaiting = currentGames.filter((g: any) => {
+      const d = g.data;
+      return d.status === "waiting" && d.players?.[0]?.userId !== userId;
+    });
+
+    if (otherWaiting.length > 0) {
+      const title = document.createElement("p");
+      title.className = "lobby-section-title";
+      title.textContent = "Parties disponibles";
+      listEl.appendChild(title);
+
+      for (const game of otherWaiting) {
+        const d = game.data;
+        const name = d.name || "Sans nom";
+        const div = document.createElement("div");
+        div.className = "lobby-item";
+        div.innerHTML = `<span>${name}</span>`;
+        const btn = document.createElement("button");
+        btn.textContent = "Rejoindre";
+        btn.addEventListener("click", () => joinGame(game));
+        div.appendChild(btn);
+        listEl.appendChild(div);
+      }
+    }
   }
 
-  async function joinGame(hostId: string) {
+  async function joinGame(game: any) {
     const userId = getUserId();
-    joined = true;
     statusEl.textContent = "Lancement...";
-    listEl.innerHTML = "";
     try {
-      const guestId = isGuest() ? null : userId;
-      const gameState = createInitialState(hostId, guestId);
-      await create("games", gameState);
+      const d = game.data;
+      d.players[1].userId = isGuest() ? null : userId;
+      d.status = "playing";
+      const hostId = d.players[0].userId;
+      const allowed = [hostId, userId].filter(Boolean) as string[];
+      await update("games", game._id, d, allowed);
+      stopPolling();
+      onGameStart(game._id);
     } catch (e: any) {
       statusEl.textContent = e.message;
-      joined = false;
     }
   }
 
   document.getElementById("btn-create-lobby")!.addEventListener("click", async () => {
     const userId = getUserId();
+    const name = nameInput.value.trim() || "Sans nom";
     statusEl.textContent = "Creation...";
     try {
-      const existing = await getList("lobbies");
-      const items = Array.isArray(existing) ? existing : [];
-      if (items.length > 0) {
-        statusEl.textContent = "Un lobby existe deja.";
-        return;
-      }
-      await create("lobbies", {
-        hostId: userId,
-        status: "waiting",
-      });
-      statusEl.textContent = "En attente d'un adversaire...";
-      document.getElementById("btn-create-lobby")!.style.display = "none";
+      const gameState = createInitialState(userId, null);
+      (gameState as any).name = name;
+      (gameState as any).status = "waiting";
+      await create("games", gameState, [userId]);
+      nameInput.value = "";
+      statusEl.textContent = "";
     } catch (e: any) {
       statusEl.textContent = e.message;
     }
