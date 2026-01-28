@@ -2,6 +2,8 @@
 
 Jeu de Quoridor multijoueur en temps reel, construit pour demontrer l'utilisation de [ZeroStack](https://zerostack.myapp.fr) comme backend dans un jeu en ligne.
 
+Jouez en ligne : **[quoridor.myapp.fr](https://quoridor.myapp.fr)**
+
 ## Objectif
 
 Ce projet sert de demo technique pour montrer comment ZeroStack peut etre utilise comme Backend-as-a-Service pour un jeu multijoueur :
