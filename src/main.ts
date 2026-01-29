@@ -1,4 +1,4 @@
-import { hasIdentity, zs } from "./api";
+import { hasIdentity, logout, zs } from "./api";
 import { WebSocketSyncProvider } from "./sync/websocket";
 import { initLoginScreen } from "./screens/login";
 import { initLobbyScreen } from "./screens/lobby";
@@ -38,6 +38,13 @@ initLoginScreen(() => {
 let gameScreen: ReturnType<typeof initGameScreen> | null = null;
 
 const lobby = initLobbyScreen(sync, startGame);
+
+// Logout button
+document.getElementById("btn-logout")!.addEventListener("click", () => {
+  lobby.stopPolling();
+  logout();
+  showScreen("login");
+});
 
 // Configure TTL: games expire after 60 minutes
 zs.config.setNodeTTL({ games: 21600 }).catch(() => {}); // 6 hours

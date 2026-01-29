@@ -41,6 +41,17 @@ export function loginAsGuest() {
   persist();
 }
 
+export function logout() {
+  accessToken = "";
+  currentUserId = "";
+  guestId = "";
+  zs.clearToken();
+  zs.clearGuestId();
+  sessionStorage.removeItem("accessToken");
+  sessionStorage.removeItem("userId");
+  sessionStorage.removeItem("guestId");
+}
+
 // Auth
 export async function register(email: string, password: string) {
   const data = await zs.auth.register(email, password);
