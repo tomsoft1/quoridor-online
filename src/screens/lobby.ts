@@ -96,10 +96,23 @@ export function initLobbyScreen(
           const btnReject = document.createElement("button");
           btnReject.textContent = "Refuser";
           btnReject.style.background = "#16213e";
-          btnReject.style.border = "1px solid #e94560";
-          btnReject.style.color = "#e94560";
+          btnReject.style.border = "1px solid #555";
           btnReject.addEventListener("click", () => rejectPlayer(game));
           div.appendChild(btnReject);
+
+          const btnCancel = document.createElement("button");
+          btnCancel.textContent = "Annuler";
+          btnCancel.style.background = "#16213e";
+          btnCancel.style.border = "1px solid #e94560";
+          btnCancel.style.color = "#e94560";
+          btnCancel.addEventListener("click", async () => {
+            try {
+              await remove("games", game._id);
+            } catch (e: any) {
+              statusEl.textContent = e.message;
+            }
+          });
+          div.appendChild(btnCancel);
         } else {
           div.innerHTML = `<span>${name} — en attente d'un adversaire...</span>`;
 
