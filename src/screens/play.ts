@@ -7,6 +7,7 @@ import type { InputMode } from "../game/input";
 import { handleClick, handleMouseMove } from "../game/input";
 import type { SyncProvider, Unsubscribe } from "../sync/types";
 import { update, remove, getUserId, incrementStats } from "../api";
+import { playMoveSound, playWallSound, playWinSound, playLoseSound } from "../game/sounds";
 
 export function initGameScreen(
   sync: SyncProvider,
@@ -89,10 +90,12 @@ export function initGameScreen(
       endSubtitle.textContent = "Bien joue, vous avez gagne !";
       endOverlay.classList.add("win");
       createConfetti();
+      playWinSound();
     } else {
       endMessage.textContent = "Defaite...";
       endSubtitle.textContent = "Pas de chance, retentez votre chance !";
       endOverlay.classList.add("lose");
+      playLoseSound();
     }
 
     endOverlay.classList.add("active");
@@ -139,6 +142,13 @@ export function initGameScreen(
       const newState = applyAction(state, action);
       if (!newState) return;
 
+      // Play sound effect
+      if (action.type === "move") {
+        playMoveSound();
+      } else if (action.type === "wall") {
+        playWallSound();
+      }
+
       state = newState;
       ghostWall = null;
       render();
@@ -169,9 +179,17 @@ export function initGameScreen(
       const gs = result.data as GameState;
       if (!gs || !gs.players) return;
 
+      const wasMyTurn = state?.currentTurn === playerIdx;
+
       if (!state) {
         const idx = getPlayerIndex(gs, userId);
         playerIdx = idx === -1 ? (gs.players[1].userId === null ? 1 : 0) : idx;
+      }
+
+      // Play sound if opponent just moved (it's now my turn)
+      const isNowMyTurn = gs.currentTurn === playerIdx && gs.status === "playing";
+      if (state && !wasMyTurn && isNowMyTurn) {
+        playMoveSound(); // Opponent moved, notify player it's their turn
       }
 
       state = gs;
