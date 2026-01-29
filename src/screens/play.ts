@@ -6,7 +6,7 @@ import type { BoardRenderer } from "../game/board";
 import type { InputMode } from "../game/input";
 import { handleClick, handleMouseMove } from "../game/input";
 import type { SyncProvider, Unsubscribe } from "../sync/types";
-import { update, getUserId } from "../api";
+import { update, remove, getUserId } from "../api";
 
 export function initGameScreen(
   sync: SyncProvider,
@@ -62,10 +62,50 @@ export function initGameScreen(
     onGameEnd();
   });
 
+  function createConfetti() {
+    const colors = ["#4ade80", "#fbbf24", "#60a5fa", "#f472b6", "#a78bfa"];
+    for (let i = 0; i < 50; i++) {
+      const confetti = document.createElement("div");
+      confetti.className = "confetti";
+      confetti.style.left = Math.random() * 100 + "%";
+      confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.animationDelay = Math.random() * 2 + "s";
+      confetti.style.borderRadius = Math.random() > 0.5 ? "50%" : "0";
+      endOverlay.appendChild(confetti);
+      setTimeout(() => confetti.remove(), 5000);
+    }
+  }
+
   function showEnd(s: GameState) {
     const won = s.winner === playerIdx;
-    endMessage.textContent = won ? "Victoire !" : "Defaite...";
+    const endSubtitle = document.getElementById("end-subtitle")!;
+
+    // Clear previous classes and confetti
+    endOverlay.classList.remove("win", "lose");
+    endOverlay.querySelectorAll(".confetti").forEach(c => c.remove());
+
+    if (won) {
+      endMessage.textContent = "Victoire !";
+      endSubtitle.textContent = "Bien joue, vous avez gagne !";
+      endOverlay.classList.add("win");
+      createConfetti();
+    } else {
+      endMessage.textContent = "Defaite...";
+      endSubtitle.textContent = "Pas de chance, retentez votre chance !";
+      endOverlay.classList.add("lose");
+    }
+
     endOverlay.classList.add("active");
+
+    // Delete game from database after 2 seconds
+    setTimeout(async () => {
+      try {
+        await remove("games", gameId);
+        console.log("Game deleted from database");
+      } catch (e) {
+        console.error("Failed to delete game:", e);
+      }
+    }, 2000);
   }
 
   btnBackLobby.addEventListener("click", () => {

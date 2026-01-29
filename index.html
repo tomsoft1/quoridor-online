@@ -40,9 +40,18 @@
     .mode-toggle button { flex: 1; }
     .mode-toggle button.active { background: #e94560; }
     .mode-toggle button:not(.active) { background: #16213e; border: 1px solid #555; }
-    #end-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 10; }
+    #end-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 10; overflow: hidden; }
     #end-overlay.active { display: flex; }
-    #end-overlay h2 { font-size: 2em; margin-bottom: 20px; color: #e94560; }
+    #end-overlay h2 { font-size: 2.5em; margin-bottom: 20px; }
+    #end-overlay.win h2 { color: #4ade80; text-shadow: 0 0 30px rgba(74,222,128,0.6); animation: win-pulse 0.6s ease-in-out infinite alternate; }
+    #end-overlay.lose h2 { color: #e94560; animation: lose-shake 0.5s ease-in-out; }
+    @keyframes win-pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+    @keyframes lose-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+
+    /* Confetti */
+    .confetti { position: absolute; width: 10px; height: 10px; opacity: 0; animation: confetti-fall 3s ease-out forwards; }
+    @keyframes confetti-fall { 0% { opacity: 1; transform: translateY(-100px) rotate(0deg); } 100% { opacity: 0; transform: translateY(100vh) rotate(720deg); } }
+    #end-subtitle { font-size: 1em; color: #888; margin-bottom: 24px; }
   </style>
 </head>
 <body>
@@ -95,6 +104,7 @@
 
     <div id="end-overlay">
       <h2 id="end-message"></h2>
+      <p id="end-subtitle"></p>
       <button id="btn-back-lobby" style="width:auto;padding:12px 32px">Retour au lobby</button>
     </div>
   </div>
