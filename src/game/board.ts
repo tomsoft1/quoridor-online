@@ -146,7 +146,7 @@ export function initBoard(container: HTMLElement): BoardRenderer {
   // Ghost wall mesh
   const ghostWallMesh = new THREE.Mesh(
     new THREE.BoxGeometry(1, 1, 1), // placeholder, resized in update
-    new THREE.MeshStandardMaterial({ color: COLORS.wallGhost, transparent: true, opacity: 0.35, roughness: 0.4 }),
+    new THREE.MeshStandardMaterial({ color: COLORS.wallGhost, transparent: true, opacity: 0.6, emissive: COLORS.wallGhost, emissiveIntensity: 0.4, roughness: 0.4 }),
   );
   ghostWallMesh.visible = false;
   ghostWallMesh.castShadow = true;
