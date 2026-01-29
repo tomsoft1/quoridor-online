@@ -40,7 +40,7 @@ let gameScreen: ReturnType<typeof initGameScreen> | null = null;
 const lobby = initLobbyScreen(sync, startGame);
 
 // Configure TTL: games expire after 60 minutes
-zs.config.setNodeTTL({ games: 3600 }).catch(() => {});
+zs.config.setNodeTTL({ games: 21600 }).catch(() => {}); // 6 hours
 
 // Auto-restore session
 if (hasIdentity()) {
