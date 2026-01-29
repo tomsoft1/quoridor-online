@@ -46,8 +46,9 @@ document.getElementById("btn-logout")!.addEventListener("click", () => {
   showScreen("login");
 });
 
-// Configure TTL: games expire after 60 minutes
+// Configure TTL and public nodes
 zs.config.setNodeTTL({ games: 21600 }).catch(() => {}); // 6 hours
+zs.config.setPublicNodes({ read: ["stats"], create: ["stats"], update: ["stats"] }).catch(() => {});
 
 // Auto-restore session
 if (hasIdentity()) {

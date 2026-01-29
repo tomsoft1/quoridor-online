@@ -1,4 +1,4 @@
-import { create, remove, update, getUserId } from "../api";
+import { create, remove, update, getUserId, getStats } from "../api";
 import type { SyncProvider } from "../sync/types";
 import { createInitialState } from "../game/state";
 
@@ -8,13 +8,24 @@ export function initLobbyScreen(
 ) {
   const listEl = document.getElementById("lobby-list")!;
   const statusEl = document.getElementById("lobby-status")!;
+  const statsEl = document.getElementById("lobby-stats")!;
   const nameInput = document.getElementById("lobby-name") as HTMLInputElement;
   let gamesSub: (() => void) | null = null;
   let currentGames: any[] = [];
 
+  async function loadStats() {
+    const stats = await getStats();
+    if (stats) {
+      statsEl.innerHTML = `<strong>Stats globales:</strong> ${stats.gamesPlayed || 0} parties jouees | Humains: ${stats.humanWins || 0} victoires | Bot: ${stats.botWins || 0} victoires`;
+    } else {
+      statsEl.innerHTML = `<strong>Stats globales:</strong> Aucune partie jouee`;
+    }
+  }
+
   function startPolling() {
     stopPolling();
     currentGames = [];
+    loadStats();
 
     gamesSub = sync.subscribeList("games", {}, (items: any[]) => {
       currentGames = items;

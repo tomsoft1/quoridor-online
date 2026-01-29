@@ -93,3 +93,32 @@ export async function update(node: string, id: string, data: any, allowed?: stri
 export async function remove(node: string, id: string) {
   return zs.data.delete(node, id);
 }
+
+// Stats
+const STATS_ID = "global";
+
+export async function getStats() {
+  try {
+    const result = await getList("stats");
+    return result.find((s: any) => s.data?.id === STATS_ID)?.data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function incrementStats(field: "gamesPlayed" | "botWins" | "humanWins") {
+  try {
+    const result = await getList("stats");
+    const existing = result.find((s: any) => s.data?.id === STATS_ID);
+
+    if (existing) {
+      const data = { ...existing.data, [field]: (existing.data[field] || 0) + 1 };
+      await update("stats", existing._id, data);
+    } else {
+      const data = { id: STATS_ID, gamesPlayed: 0, botWins: 0, humanWins: 0, [field]: 1 };
+      await create("stats", data);
+    }
+  } catch (e) {
+    console.error("Failed to update stats:", e);
+  }
+}

@@ -6,7 +6,7 @@ import type { BoardRenderer } from "../game/board";
 import type { InputMode } from "../game/input";
 import { handleClick, handleMouseMove } from "../game/input";
 import type { SyncProvider, Unsubscribe } from "../sync/types";
-import { update, remove, getUserId } from "../api";
+import { update, remove, getUserId, incrementStats } from "../api";
 
 export function initGameScreen(
   sync: SyncProvider,
@@ -97,13 +97,23 @@ export function initGameScreen(
 
     endOverlay.classList.add("active");
 
-    // Delete game from database after 2 seconds
+    // Update stats and delete game after 2 seconds
     setTimeout(async () => {
       try {
+        // Update stats
+        await incrementStats("gamesPlayed");
+        const winnerUserId = s.players[s.winner!]?.userId;
+        if (winnerUserId?.startsWith("bot_")) {
+          await incrementStats("botWins");
+        } else {
+          await incrementStats("humanWins");
+        }
+
+        // Delete game
         await remove("games", gameId);
-        console.log("Game deleted from database");
+        console.log("Game deleted and stats updated");
       } catch (e) {
-        console.error("Failed to delete game:", e);
+        console.error("Failed to update stats or delete game:", e);
       }
     }, 2000);
   }
