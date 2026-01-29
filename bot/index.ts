@@ -124,15 +124,22 @@ async function main() {
   // Subscribe to realtime updates
   console.log("[BOT] Subscribing to realtime updates...");
   zs.realtime.subscribe("games", async (item: any, event: string) => {
-    console.log(`[BOT] Realtime event: ${event} for game ${item._id}`);
+    const itemId = item?._id || item?.id;
+    console.log(`[BOT] Realtime event: ${event} for game ${itemId || "unknown"}`);
+
+    if (!itemId) {
+      console.log(`[BOT] Ignoring event with no item ID`);
+      return;
+    }
 
     if (event === "created" || event === "updated") {
-      gamesCache.set(item._id, item);
+      gamesCache.set(itemId, item);
       logStats();
       await processGame(item);
     } else if (event === "deleted") {
-      gamesCache.delete(item._id);
-      joinedGames.delete(item._id);
+      gamesCache.delete(itemId);
+      joinedGames.delete(itemId);
+      gameFirstSeen.delete(itemId);
       logStats();
     }
   });
