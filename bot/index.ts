@@ -4,6 +4,12 @@ import { GameState, chooseAction, applyAction } from "./strategy.js";
 // Track games we've already joined to avoid duplicate joins
 const joinedGames = new Set<string>();
 
+// Track when games were first seen (for delay before joining)
+const gameFirstSeen = new Map<string, number>();
+
+// Delay before bot requests to join (give humans a chance)
+const JOIN_DELAY_MS = 10000;
+
 // Local cache of games
 let gamesCache: Map<string, any> = new Map();
 
@@ -28,6 +34,21 @@ async function processGame(game: any) {
 
   // Request to join waiting games (skip if someone else already requested)
   if (state.status === "waiting" && !joinedGames.has(gameId) && !(state as any).pendingPlayer) {
+    // Track when we first saw this game
+    if (!gameFirstSeen.has(gameId)) {
+      gameFirstSeen.set(gameId, Date.now());
+      const gameName = (state as any).name || "Sans nom";
+      console.log(`[BOT] New game "${gameName}" (${gameId}) detected, waiting ${JOIN_DELAY_MS / 1000}s before joining...`);
+      setTimeout(() => processGame(game), JOIN_DELAY_MS);
+      return;
+    }
+
+    // Check if delay has passed
+    const elapsed = Date.now() - gameFirstSeen.get(gameId)!;
+    if (elapsed < JOIN_DELAY_MS) {
+      return; // Still waiting
+    }
+
     const gameName = (state as any).name || "Sans nom";
     const host = state.players[0]?.userId || "?";
     console.log(`[BOT] Requesting to join "${gameName}" (${gameId}) hosted by ${host}...`);
@@ -35,6 +56,7 @@ async function processGame(game: any) {
       (state as any).pendingPlayer = BOT_ID;
       await update("games", gameId, state);
       joinedGames.add(gameId);
+      gameFirstSeen.delete(gameId);
       console.log(`[BOT] Requested to join game ${gameId}, waiting for acceptance`);
     } catch (e: any) {
       console.error(`[BOT] Failed to request join for game ${gameId}:`, e.message);
@@ -75,9 +97,10 @@ async function processGame(game: any) {
     }
   }
 
-  // Clean up finished games from tracking
-  if (state.status === "finished") {
+  // Clean up finished/playing games from tracking
+  if (state.status === "finished" || state.status === "playing") {
     joinedGames.delete(gameId);
+    gameFirstSeen.delete(gameId);
   }
 }
 
