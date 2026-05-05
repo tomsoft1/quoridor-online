@@ -4,6 +4,9 @@ import { GameState, chooseAction, applyAction } from "./strategy.js";
 // Track games we've already joined to avoid duplicate joins
 const joinedGames = new Set<string>();
 
+// Track games where bot was rejected (don't retry)
+const rejectedGames = new Set<string>();
+
 // Track when games were first seen (for delay before joining)
 const gameFirstSeen = new Map<string, number>();
 
@@ -32,8 +35,16 @@ async function processGame(game: any) {
   const state = game.data as GameState;
   const gameId = game._id;
 
-  // Request to join waiting games (skip if someone else already requested)
-  if (state.status === "waiting" && !joinedGames.has(gameId) && !(state as any).pendingPlayer) {
+  // Check if bot was rejected (we requested but pendingPlayer is no longer us)
+  if (state.status === "waiting" && joinedGames.has(gameId) && (state as any).pendingPlayer !== BOT_ID) {
+    console.log(`[BOT] Rejected from game ${gameId}, will not retry`);
+    joinedGames.delete(gameId);
+    rejectedGames.add(gameId);
+    return;
+  }
+
+  // Request to join waiting games (skip if someone else already requested or we were rejected)
+  if (state.status === "waiting" && !joinedGames.has(gameId) && !rejectedGames.has(gameId) && !(state as any).pendingPlayer) {
     // Track when we first saw this game
     if (!gameFirstSeen.has(gameId)) {
       gameFirstSeen.set(gameId, Date.now());
@@ -100,6 +111,7 @@ async function processGame(game: any) {
   // Clean up finished/playing games from tracking
   if (state.status === "finished" || state.status === "playing") {
     joinedGames.delete(gameId);
+    rejectedGames.delete(gameId);
     gameFirstSeen.delete(gameId);
   }
 }
@@ -139,6 +151,7 @@ async function main() {
     } else if (event === "deleted") {
       gamesCache.delete(itemId);
       joinedGames.delete(itemId);
+      rejectedGames.delete(itemId);
       gameFirstSeen.delete(itemId);
       logStats();
     }

@@ -39,6 +39,18 @@ export function initLobbyScreen(
 
   function renderAll() {
     const userId = getUserId();
+
+    // Auto-redirect: if I was just accepted into a game, go there
+    const justAccepted = currentGames.find((g: any) => {
+      const d = g.data;
+      return d.status === "playing" && d.players?.[1]?.userId === userId;
+    });
+    if (justAccepted) {
+      stopPolling();
+      onGameStart(justAccepted._id);
+      return;
+    }
+
     listEl.innerHTML = "";
     statusEl.textContent = "";
 
@@ -126,14 +138,6 @@ export function initLobbyScreen(
           div.appendChild(btnCancel);
         } else {
           div.innerHTML = `<span>${name} — en attente d'un adversaire...</span>`;
-
-          const btnStart = document.createElement("button");
-          btnStart.textContent = "Entrer";
-          btnStart.addEventListener("click", () => {
-            stopPolling();
-            onGameStart(game._id);
-          });
-          div.appendChild(btnStart);
 
           const btnCancel = document.createElement("button");
           btnCancel.textContent = "Annuler";
